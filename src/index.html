@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WhatsApp Bot Dashboard</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f6f8;
+      padding: 40px;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 { color: #25D366; }
+    input, button {
+      padding: 10px;
+      width: 100%;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🤖 WhatsApp Bot Admin</h1>
+
+    <p>Status: <span id="status">Checking...</span></p>
+
+    <input id="number" placeholder="WhatsApp number (91XXXXXXXXXX)" />
+    <input id="message" placeholder="Message text" />
+
+    <button onclick="send()">Send Test Message</button>
+
+    <pre id="log"></pre>
+  </div>
+
+  <script>
+    const API = "https://YOUR-BACKEND-URL.com";
+
+    fetch(API + "/health")
+      .then(() => document.getElementById("status").innerText = "✅ Backend Connected")
+      .catch(() => document.getElementById("status").innerText = "❌ Backend Down");
+
+    async function send() {
+      const res = await fetch(API + "/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: document.getElementById("number").value,
+          text: document.getElementById("message").value
+        })
+      });
+
+      document.getElementById("log").innerText = await res.text();
+    }
+  </script>
+</body>
+</html>
