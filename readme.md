@@ -1,6 +1,6 @@
 Use nodemon (recommended for stability)
 npm run dev:nodemon
-
+npx ngrok http 4000
 Use ts-node-dev (faster rebuilds)
 npm run dev:tsnode
 
