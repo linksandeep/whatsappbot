@@ -64,3 +64,26 @@ GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 │   └── lead.service.ts
 └── utils/
     └── productScope.ts
+
+
+
+    PORT=4000
+MONGO_URI=mongodb://localhost:27017
+
+WHATSAPP_TOKEN=EAALFNDX25f0BQjCEXhhF74miNn0Y1xsgG3SGe5wtvzQH3Itt4CFh2ZBfvQSlVlSikWxZCyEVSHITWooi0OSVALWsIZBXicoixLECiNRHKHshSYKJMLq7LNIg1e9UfmHYPTRU8jEL4X5me4YVtdah6bxBiHhFyOw4IRIFc9PWCzYYVhlDaCeDZBc9ZCHLlU7pxvC1bE3frH9dzirXo6uzFEpCadd6wM9s3TleiEXiYq4KC4mrqJzTT2mgUFd4ydnxMZBz4EoqsTjutOfD7NVTvEMMjB4xIu337F3LPQ9wZDZD
+WHATSAPP_PHONE_NUMBER_ID=942833252255374
+WHATSAPP_API_VERSION=v24.0
+VERIFY_TOKEN=edtech_secret_123
+
+# For testing
+WHATSAPP_TEMPLATE_NAMEhfdh=hello_world
+
+# For later use
+COMMUNITY_LINK=https://your-community-link.com
+
+MONGO_URL=mongodb+srv://dipanshu2000000_db_user:vBAiGB6vYAtVBXrS@cluster0.tsghnsf.mongodb.net/your_db_name?retryWrites=true&w=majority
+COM_LINK=www.google.com
+GROQ_MODEL=llama-3.3-70b-versatile  # or mixtral-8x7b-32768
+SUPPORTED_LANGUAGES=en,hi,es,fr,de  # Add more as needed
+nwe=982223228299287
+new2=1009022102287799
