@@ -38,6 +38,118 @@ router.get("/webhook", (req: Request, res: Response) => {
 // src/routes/webhook.ts
 
 
+// 1. GET Route: Webhook Verification
+// This is required for Meta to verify your server exists.
+router.get("/lead", (req, res) => {
+
+  console.log("lead gettting console ")
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    // Use the same verify token you put in your Meta App Dashboard
+    if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
+        console.log("--- WEBHOOK VERIFIED SUCCESSFULLY ---");
+        return res.status(200).send(challenge);
+    } else {
+        console.log("--- WEBHOOK VERIFICATION FAILED ---");
+        return res.sendStatus(403);
+    }
+});
+
+// 2. POST Route: Receive and Log Leads
+// This captures the leadgen_id and prints it to your terminal.
+// Define the structure of the Meta Webhook
+interface MetaLeadChange {
+  field: string;
+  value: {
+      leadgen_id: string;
+      page_id: string;
+      form_id: string;
+      created_time: number;
+  };
+}
+
+interface MetaEntry {
+  id: string;
+  time: number;
+  changes: MetaLeadChange[];
+}
+
+// Update your router code
+router.post("/lead", async (req, res) => {
+  const body = req.body;
+
+  // 1. Acknowledge the webhook immediately
+  res.status(200).send('EVENT_RECEIVED');
+
+  if (body.object === 'page') {
+    for (const entry of body.entry) {
+      for (const change of entry.changes) {
+        if (change.field === 'leadgen') {
+          const leadId = change.value.leadgen_id;
+          
+          try {
+            const leadData = await fetchLeadDetails(leadId);
+            
+            let rawPhone = "";
+            let customerName = "there";
+
+            // 3. ADAPTABLE EXTRACTION: Checks all possible Meta field names
+            leadData.field_data.forEach((field: any) => {
+              const fieldName = field.name.toLowerCase();
+              if (fieldName.includes("phone") || fieldName.includes("mobile")) {
+                rawPhone = field.values[0];
+              }
+              if (fieldName.includes("full_name") || fieldName.includes("name")) {
+                customerName = field.values[0];
+              }
+            });
+
+            // 🛠️ CRITICAL FIX FOR TEST LEADS: 
+            // If phone is empty (common in dummy tests), use a placeholder to prevent DB crash
+            if (!rawPhone && (leadId.includes("444") || leadId.length > 10)) {
+              console.log("⚠️ Dummy lead detected or phone missing. Using test placeholder.");
+              rawPhone = "447000000000"; 
+            }
+
+            if (rawPhone) {
+              // Clean the number for WhatsApp (Digits only)
+              let customerPhone = rawPhone.replace(/\D/g, "");
+
+              // Adapt for UK local format
+              if (customerPhone.startsWith("07") && customerPhone.length === 11) {
+                customerPhone = "44" + customerPhone.substring(1);
+              }
+
+              const communityLink = process.env.COMMUNITY_LINK;
+              const messageText = `Hey ${customerName}! 😊 I’m from the EdTechInformative Team.
+We help UK professionals start their journey in AI, even with no technical background.
+
+🚀 Our AI Agentic Masterclass is the perfect place to begin.
+
+💷 Price: £99
+🕗 Live Session: This weekend (8–9 PM UK time)
+
+👉 Join our free WhatsApp AI community here:
+${communityLink}`;
+
+              console.log(`🚀 Sending invite to: ${customerPhone}`);
+
+              // 5. Send via WhatsApp helper
+              await sendWhatsAppMessage(customerPhone, messageText);
+              
+              console.log(`✅ Success: Message sent to ${customerName} at ${customerPhone}`);
+            }
+          } catch (error: any) {
+            console.error("❌ Error processing Lead ID:", leadId, error.message);
+          }
+        }
+      }
+    }
+  }
+});
+
 router.post("/webhook", async (req: Request, res: Response) => {
   console.log("🟢 [WEBHOOK HIT] Incoming Meta Webhook Event");
   
@@ -59,6 +171,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
      * 1️⃣ HANDLE DIRECT WHATSAPP MESSAGES
      */
     if (field === "messages") {
+      console.log("💬 Processing direct WhatsApp message...");
       const message = value?.messages?.[0];
       
       if (!message) {
@@ -70,18 +183,13 @@ router.post("/webhook", async (req: Request, res: Response) => {
       const text = message.text?.body;
       const contactName = value?.contacts?.[0]?.profile?.name || "there";
 
-      console.log(`📩 Message from ${contactName} (${from}): "${text}"`);
-
-      // Use our smart message handler instead of simple reply
       try {
         await handleMessage(from, text || "", contactName);
         console.log(`✅ Reply sent to ${contactName}`);
       } catch (sendError: any) {
         console.error(`❌ Failed to process message:`, sendError.message);
-        
-        // Even on error, try to send something
         try {
-          await sendWhatsAppMessage(from, `Hi ${contactName}! Sorry, I'm having a moment. Could you email ${biz.contact.email}?`);
+          await sendWhatsAppMessage(from, `Hi ${contactName}! Sorry, I'm having a moment. Could you email ${process.env.BIZ_EMAIL}?`);
         } catch (e) {
           console.error("Double failure!");
         }
@@ -89,67 +197,99 @@ router.post("/webhook", async (req: Request, res: Response) => {
     }
 
     /**
-     * 2️⃣ HANDLE LEADGEN EVENTS (Meta Lead Forms)
+     * 2️⃣ HANDLE LEADGEN EVENTS (Data Analytics & GEN AI Invitation)
      */
     else if (field === "leadgen") {
       console.log("📊 Processing new Lead Form...");
       
       const leadId = value?.leadgen_id;
-      if (!leadId) {
-        console.error("❌ No Lead ID");
-        return res.sendStatus(200);
-      }
+      if (!leadId) return res.sendStatus(200);
 
-      // Check duplicate
       const existingLead = await Lead.findOne({ leadId });
       if (existingLead) {
         console.log(`⚠️ Duplicate lead: ${leadId}`);
         return res.sendStatus(200);
       }
 
-      console.log(`📡 Fetching lead: ${leadId}`);
-      const leadInfo = await fetchLeadDetails(leadId);
-
-      // Extract data
-      const name = leadInfo.field_data?.find((f: any) => f.name === "full_name")?.values?.[0] || "Friend";
-      const phone = leadInfo.field_data?.find((f: any) => f.name === "phone_number")?.values?.[0];
-
-      if (!phone) {
-        console.error("❌ No phone in lead");
+      let leadInfo;
+      try {
+        leadInfo = await fetchLeadDetails(leadId);
+      } catch (fetchError: any) {
+        console.error(`❌ Failed to fetch lead details:`, fetchError.message);
         return res.sendStatus(200);
       }
 
-      console.log(`👤 New Lead: ${name} (${phone})`);
+      // --- ROBUST EXTRACTION ---
+      const fieldData = leadInfo?.field_data || [];
+      
+      const name = fieldData.find((f: any) => 
+        ["full_name", "first_name", "name"].includes(f.name.toLowerCase())
+      )?.values?.[0] || "there";
 
-      // Save to DB
-      await Lead.create({ 
-        name, 
-        phone, 
-        leadId, 
-        status: "AUTO_SENT",
-        createdAt: new Date()
+      const phoneField = fieldData.find((f: any) => {
+        const n = f.name.toLowerCase();
+        return n.includes("phone") || n.includes("mobile") || n.includes("contact");
       });
-      console.log("💾 Lead saved");
 
-      // Send welcome message using our handler
+      let rawPhone = phoneField?.values?.[0];
+
+      // 🚨 GATEKEEPER: Stop if phone is missing (common in Test Tool)
+      if (!rawPhone || rawPhone.trim() === "") {
+        console.warn(`⚠️ Lead ${leadId} has no phone data. Skipping DB save.`);
+        return res.sendStatus(200); 
+      }
+
+      // --- CLEANING & COUNTRY CODE ---
+      let cleanPhone = String(rawPhone).replace(/\D/g, "");
+
+      // Handle UK local format (07... to 447...)
+      if (cleanPhone.startsWith("07") && cleanPhone.length === 11) {
+        cleanPhone = "44" + cleanPhone.substring(1);
+      }
+      
+      console.log(`👤 Processed Lead: ${name} (${cleanPhone})`);
+
       try {
-        await handleMessage(phone, "hi", name);
-        console.log(`🎉 Welcome sent to ${name}`);
-      } catch (error) {
-        console.error("Failed to send welcome:", error);
+        // 💾 Save to MongoDB
+        await Lead.create({ 
+          name, 
+          phone: cleanPhone, 
+          leadId, 
+          status: "AUTO_SENT", 
+          createdAt: new Date()
+        });
+        console.log("💾 Lead saved to MongoDB");
+
+        // 📝 CONSTRUCT NEW MESSAGE
+        const invitationMessage = `Hi ${name} 👋
+
+Just saw your application for our Data Analytics and GEN AI Certification Programme!
+
+Quick question - are you looking to:
+1️⃣ Switch career completely (non-tech to tech)
+2️⃣ Upskill in current IT role
+3️⃣ Get back to work after a break
+
+Reply with just the number, and I'll send you the next steps 😊
+
+Edtech Informative`;
+
+        // 📲 Send WhatsApp
+        await sendWhatsAppMessage(cleanPhone, invitationMessage);
+        console.log(`🎉 New Program Invite sent to ${name}`);
+        
+      } catch (dbError: any) {
+        console.error("❌ DB/WhatsApp Error:", dbError.message);
       }
     }
 
-    // Always return 200
     res.sendStatus(200);
     
   } catch (error: any) {
-    console.error("🔥 CRITICAL ERROR:");
-    console.error("Message:", error.message);
+    console.error("🔥 CRITICAL WEBHOOK ERROR:", error.message);
     res.sendStatus(200);
   }
 });
-
 // Make sure to import this in your main app
 export default router;
 

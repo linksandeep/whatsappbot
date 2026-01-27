@@ -39,6 +39,28 @@ export const sendTemplateMessage = async (to: string, name: string) => {
 };
 
 
+// export const sendProgramInvitation = async (to: string, name: string) => {
+//   const payload = {
+//     messaging_product: "whatsapp",
+//     to: to,
+//     type: "template",
+//     template: {
+//       name: "data_gen_ai_invite", // Must match the name you chose in Meta
+//       language: { code: "en" },
+//       components: [
+//         {
+//           type: "body",
+//           parameters: [
+//             { type: "text", text: name } // This replaces {{1}} with the lead's name
+//           ]
+//         }
+//       ]
+//     }
+//   };
+
+//   return axios.post(url, payload, { headers });
+// };
+
 export const sendWhatsAppMessage = async (to: string, text: string) => {
   try {
     // Use the exact names from your .env

@@ -12,20 +12,17 @@ const LeadSchema = new mongoose.Schema(
       required: true,
       trim: true 
     },
-    // The unique ID Meta provides for every form submission
     leadId: { 
       type: String, 
       unique: true, 
       sparse: true 
     },
-    // Tracks the flow: NEW -> SENT -> REPLIED
     status: { 
       type: String, 
-      enum: ["NEW", "SENT", "FAILED", "REPLIED"], 
+      // UPDATED: Added "AUTO_SENT" to match your webhook code logic
+      enum: ["NEW", "SENT", "FAILED", "REPLIED", "AUTO_SENT"], 
       default: "NEW" 
     }, 
-
-    // Useful if you have multiple lead forms
     formName: { 
       type: String 
     }
